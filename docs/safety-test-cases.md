@@ -8,8 +8,8 @@
 
 **测试环境建议**
 
-- 本地：`bun run dev`，配置 `.env` 中 `KIMI_API_KEY`
-- 生产预览：确认 `ALLOW_CLIENT_KIMI_KEY` 未开启，API Key 不可从浏览器提交
+- 本地：`bun run dev`，配置 `.env` 中 `ANTHROPIC_API_KEY`
+- 生产预览：确认 `ALLOW_CLIENT_ANTHROPIC_KEY` 未开启，API Key 不可从浏览器提交
 
 **通用通过标准**
 
@@ -175,16 +175,16 @@
 | 项 | 内容 |
 |----|------|
 | **步骤** | 同一 IP 在 1 分钟内连续发送 >30 次 `/api/chat`（或调低 `CHAT_RATE_LIMIT_PER_MIN` 复现） |
-| **预期** | 返回 HTTP 429 + `Retry-After`；不消耗无限 Kimi 额度 |
+| **预期** | 返回 HTTP 429 + `Retry-After`；不消耗无限 Claude 额度 |
 | **护栏** | `checkRateLimit` |
 
 ### D-06 浏览器提交 API Key（生产）
 
 | 项 | 内容 |
 |----|------|
-| **步骤** | 生产环境（`NODE_ENV=production`）在请求体中带 `kimiApiKey` |
+| **步骤** | 生产环境（`NODE_ENV=production`）在请求体中带 `claudeApiKey` |
 | **预期** | HTTP 403，`code: client_key_forbidden`；配置 Dialog 不显示 Key 输入框 |
-| **护栏** | `resolveKimiClient` |
+| **护栏** | `resolveClaudeClient` |
 
 ---
 
@@ -316,7 +316,7 @@
 
 | 项 | 内容 |
 |----|------|
-| **步骤** | 临时设 `KIMI_TIMEOUT_MS=1` 复现 |
+| **步骤** | 临时设 `ANTHROPIC_TIMEOUT_MS=1` 复现 |
 | **预期** | SSE 返回 `content_replace` 含 `UPSTREAM_TIMEOUT_MESSAGE` |
 
 ---
@@ -349,7 +349,7 @@
 | 项 | 内容 |
 |----|------|
 | **步骤** | 分别触发 `content_replace` 和危机固定回复 |
-| **预期** | D1 只保存最终 replacement；危机分支不调用 Kimi，固定回复被加密保存 |
+| **预期** | D1 只保存最终 replacement；危机分支不调用 Claude，固定回复被加密保存 |
 
 ### A-05 删除闭包
 
@@ -381,7 +381,7 @@
 | `data/legal-golden-cases.ts` | **`bun run test:legal-golden`** + SOP §6 |
 | `lib/guest-agent.ts` | §6 |
 | `lib/intent-detect.ts` | §1-S-01、§5-C-02 |
-| `components/kimi-config-provider.tsx` | §4-D-06 |
+| `components/claude-config-provider.tsx` | §4-D-06 |
 
 ```bash
 bun run test:safety

@@ -9,8 +9,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:safety": "tsx scripts/safety-guardrails.test.ts",
-    "test:kimi": "tsx scripts/kimi-diagnostics.test.ts && tsx scripts/kimi-chat.test.ts",
-    "diagnose:kimi": "tsx scripts/diagnose-kimi.ts",
+    "test:claude": "tsx scripts/claude-diagnostics.test.ts && tsx scripts/claude-chat.test.ts",
+    "diagnose:claude": "tsx scripts/diagnose-claude.ts",
     "test:safety:e2e": "tsx scripts/safety-guardrails.e2e.test.ts",
     "test:legal-golden": "tsx scripts/retrieve-sop.test.ts && tsx scripts/legal-golden-regression.test.ts",
     "test:retrieve-sop": "tsx scripts/retrieve-sop.test.ts",
@@ -21,6 +21,7 @@
     "cf-typegen": "wrangler types --env-interface CloudflareEnv cloudflare-env.d.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.125.0",
     "@base-ui/react": "^1.2.0",
     "@clerk/localizations": "^4.15.8",
     "@clerk/nextjs": "^7.8.3",
@@ -36,7 +37,6 @@
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
     "next-themes": "^0.4.6",
-    "openai": "^6.25.0",
     "radix-ui": "^1.4.3",
     "react": "19.2.3",
     "react-day-picker": "^9.14.0",

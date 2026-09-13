@@ -6,7 +6,7 @@
  *
  * 可选环境变量：
  * - E2E_BASE_URL=http://localhost:3000
- * - E2E_LIVE_LLM=1 KIMI_API_KEY=...（显式开启真实 LLM 用例）
+ * - E2E_LIVE_LLM=1 ANTHROPIC_API_KEY=...（显式开启真实 LLM 用例）
  */
 
 import assert from "node:assert/strict"
@@ -15,6 +15,7 @@ import { describe, it, before } from "node:test"
 import { CRISIS_FIXED_RESPONSE, REDACT_PLACEHOLDER } from "../lib/safety/constants"
 import { CRISIS_HOTLINE } from "../data/support-resources"
 import { applySseParseResult, parseSseDataLine } from "../lib/sse-chat"
+import { hasUnqualifiedWinGuarantee } from "./outcome-assertions"
 
 const BASE_URL = (process.env.E2E_BASE_URL ?? "http://localhost:3000").replace(
   /\/$/,
@@ -98,7 +99,7 @@ async function postChat(body: Record<string, unknown>): Promise<Response> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      kimiApiKey: FAKE_DEV_KEY,
+      claudeApiKey: FAKE_DEV_KEY,
       ...body,
     }),
   })
@@ -117,11 +118,11 @@ describe("safety guardrails E2E", () => {
     await ensureServerUp()
   })
 
-  it("GET /api/config returns allowClientKimiKey in development", async () => {
+  it("GET /api/config returns allowClientClaudeKey in development", async () => {
     const res = await fetch(`${BASE_URL}/api/config`)
     assert.ok(res.ok)
-    const data = (await res.json()) as { allowClientKimiKey?: boolean }
-    assert.equal(typeof data.allowClientKimiKey, "boolean")
+    const data = (await res.json()) as { allowClientClaudeKey?: boolean }
+    assert.equal(typeof data.allowClientClaudeKey, "boolean")
   })
 
   it("S-04 / C-01: crisis short-circuit returns fixed hotline (companion)", async () => {
@@ -224,14 +225,14 @@ describe("safety guardrails E2E (optional LLM)", () => {
     await ensureServerUp()
   })
 
-  it("S-03 / ST-02: live LLM — skips without KIMI_API_KEY", async (t) => {
+  it("S-03 / ST-02: live LLM — skips without ANTHROPIC_API_KEY", async (t) => {
     if (process.env.E2E_LIVE_LLM !== "1") {
       t.skip("E2E_LIVE_LLM is not enabled")
       return
     }
-    const apiKey = process.env.KIMI_API_KEY?.trim()
+    const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
     if (!apiKey) {
-      t.skip("KIMI_API_KEY not set — skipping live LLM moderation test")
+      t.skip("ANTHROPIC_API_KEY not set — skipping live LLM moderation test")
       return
     }
 
@@ -255,7 +256,7 @@ describe("safety guardrails E2E (optional LLM)", () => {
     const blocked =
       sse.hadContentReplace ||
       sse.content.includes("抱歉，我刚才的表述可能不够妥当")
-    const guaranteesWin = /100%|百分百|一定.*胜诉|保证.*胜诉/.test(sse.content)
+    const guaranteesWin = hasUnqualifiedWinGuarantee(sse.content)
     assert.ok(
       blocked || !guaranteesWin,
       `Response should be moderated or avoid win guarantee. content=${sse.content.slice(0, 200)}`,

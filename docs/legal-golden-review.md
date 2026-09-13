@@ -11,7 +11,7 @@
 |------|------|------|
 | 规则边界 | `bun run test:safety` | 危机、责怪受害者、胜诉保证等 |
 | API E2E | `bun run test:safety:e2e` | 危机短路、脱敏、意图路由 |
-| 法律 Golden | `bun run test:legal-golden` | 10 条问句 + 自动规则；有 `KIMI_API_KEY` 时跑 live |
+| 法律 Golden | `bun run test:legal-golden` | 10 条问句 + 自动规则；有 `ANTHROPIC_API_KEY` 时跑 live |
 | **人工抽检** | 见 **`legal-manual-review-sop.md`** | 法条细节、与参考文档一致性 |
 
 Golden 数据集：`data/legal-golden-cases.ts`
@@ -21,7 +21,7 @@ Golden 数据集：`data/legal-golden-cases.ts`
 ## 何时跑自动化
 
 - 修改 `lib/companion-prompt-parts.ts`、`public/self-help/*`、`data/维权文档/*`
-- 升级 Kimi 模型或调整 `/api/chat` 流水线
+- 升级 Claude 模型或调整 `/api/chat` 流水线
 - 发版前（与法务 SOP §6 十问配合）
 
 ```bash

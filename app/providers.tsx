@@ -1,7 +1,7 @@
 "use client"
 
-import { KimiConfigProvider } from "@/components/kimi-config-provider"
+import { ClaudeConfigProvider } from "@/components/claude-config-provider"
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  return <KimiConfigProvider>{children}</KimiConfigProvider>
+  return <ClaudeConfigProvider>{children}</ClaudeConfigProvider>
 }

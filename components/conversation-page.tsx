@@ -8,9 +8,9 @@ import { AgentMarkdown } from "@/components/agent-markdown"
 import { AuthControls } from "@/components/auth-controls"
 import { ConversationSaveControl } from "@/components/conversation-save-control"
 import {
-  KimiConfigTrigger,
-  useKimiConfig,
-} from "@/components/kimi-config-provider"
+  ClaudeConfigTrigger,
+  useClaudeConfig,
+} from "@/components/claude-config-provider"
 import { SupportResourcesDropdown } from "@/components/support-resources-dropdown"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -69,7 +69,7 @@ export function ConversationPage({
   initialMessages = [],
   initialConversationId,
 }: ConversationPageProps) {
-  const { kimiRequestFields } = useKimiConfig()
+  const { claudeRequestFields } = useClaudeConfig()
   const persistence = useConversationPersistence({
     mode: "guest",
     guestId,
@@ -196,7 +196,7 @@ export function ConversationPage({
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...requestBody, ...kimiRequestFields }),
+        body: JSON.stringify({ ...requestBody, ...claudeRequestFields }),
         signal,
       })
 
@@ -288,7 +288,7 @@ export function ConversationPage({
       setIsSending(false)
       abortRef.current = null
     }
-  }, [guestId, input, isSending, messages, kimiRequestFields, persistence])
+  }, [guestId, input, isSending, messages, claudeRequestFields, persistence])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -328,7 +328,7 @@ export function ConversationPage({
             <span className="text-xs">插画</span>
           </div>
         </div>
-        <KimiConfigTrigger />
+        <ClaudeConfigTrigger />
         <ConversationSaveControl
           isSignedIn={persistence.isSignedIn}
           historyEnabled={persistence.historyEnabled}

@@ -1,4 +1,4 @@
-import OpenAI from "openai"
+import Anthropic from "@anthropic-ai/sdk"
 
 // Provider fields are untrusted: use known diagnostic values, never error.message/body.
 const ERROR_TYPES = new Set([
@@ -6,12 +6,14 @@ const ERROR_TYPES = new Set([
   "permission_denied_error", "resource_not_found_error", "content_filter",
   "engine_overloaded_error", "exceeded_current_quota_error", "rate_limit_reached_error",
   "server_error", "unexpected_output", "authentication_error", "rate_limit_error",
+  "permission_error", "not_found_error", "overloaded_error", "api_error",
 ])
 const ERROR_CODES = new Set([
   "invalid_api_key", "insufficient_quota", "rate_limit_exceeded", "model_not_found",
   "context_length_exceeded", "ETIMEDOUT", "ECONNRESET", "ECONNREFUSED", "ENOTFOUND",
   "EAI_AGAIN", "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_SOCKET",
   "CERT_HAS_EXPIRED", "UNABLE_TO_VERIFY_LEAF_SIGNATURE", "DEPTH_ZERO_SELF_SIGNED_CERT",
+  "incomplete_stream",
 ])
 
 function record(value: unknown): Record<string, unknown> {
@@ -25,7 +27,8 @@ export function safeUpstreamRequestId(value: unknown): string | undefined {
 
 export function safeErrorDetails(error: unknown) {
   const fields = record(error)
-  const nested = record(fields.error)
+  const body = record(fields.error)
+  const nested = record(body.error ?? body)
   const type = fields.type ?? nested.type
   const code = fields.code ?? nested.code
   let causeCode: string | undefined
@@ -37,16 +40,16 @@ export function safeErrorDetails(error: unknown) {
   }
   // instanceof also works when production bundlers rename SDK constructors.
   const classes = [
-    [OpenAI.APIConnectionTimeoutError, "APIConnectionTimeoutError"],
-    [OpenAI.APIUserAbortError, "APIUserAbortError"],
-    [OpenAI.APIConnectionError, "APIConnectionError"],
-    [OpenAI.AuthenticationError, "AuthenticationError"],
-    [OpenAI.BadRequestError, "BadRequestError"],
-    [OpenAI.PermissionDeniedError, "PermissionDeniedError"],
-    [OpenAI.NotFoundError, "NotFoundError"],
-    [OpenAI.RateLimitError, "RateLimitError"],
-    [OpenAI.InternalServerError, "InternalServerError"],
-    [OpenAI.APIError, "APIError"],
+    [Anthropic.APIConnectionTimeoutError, "APIConnectionTimeoutError"],
+    [Anthropic.APIUserAbortError, "APIUserAbortError"],
+    [Anthropic.APIConnectionError, "APIConnectionError"],
+    [Anthropic.AuthenticationError, "AuthenticationError"],
+    [Anthropic.BadRequestError, "BadRequestError"],
+    [Anthropic.PermissionDeniedError, "PermissionDeniedError"],
+    [Anthropic.NotFoundError, "NotFoundError"],
+    [Anthropic.RateLimitError, "RateLimitError"],
+    [Anthropic.InternalServerError, "InternalServerError"],
+    [Anthropic.APIError, "APIError"],
     [TypeError, "TypeError"],
   ] as const
   return {
@@ -77,14 +80,17 @@ export function logSafeError(
 }
 
 export function sanitizeErrorMessage(error: unknown): string {
-  if (error instanceof OpenAI.APIConnectionTimeoutError) return "upstream_timeout"
-  if (error instanceof OpenAI.APIUserAbortError) return "upstream_cancelled"
-  if (error instanceof OpenAI.APIConnectionError) return "upstream_connection"
+  if (error instanceof Anthropic.APIConnectionTimeoutError) return "upstream_timeout"
+  if (error instanceof Anthropic.APIUserAbortError) return "upstream_cancelled"
+  if (error instanceof Anthropic.APIConnectionError) return "upstream_connection"
   const fields = record(error)
-  const type = fields.type ?? record(fields.error).type
-  if (fields.status === 401 || type === "incorrect_api_key_error" || type === "invalid_authentication_error") return "upstream_auth"
-  if (fields.status === 403) return "upstream_permission"
-  if (fields.status === 429) return "upstream_rate_limited"
+  const body = record(fields.error)
+  const type = fields.type ?? record(body.error ?? body).type
+  if (fields.code === "incomplete_stream") return "upstream_incomplete"
+  if (fields.status === 401 || type === "authentication_error" || type === "incorrect_api_key_error" || type === "invalid_authentication_error") return "upstream_auth"
+  if (fields.status === 403 || type === "permission_error") return "upstream_permission"
+  if (fields.status === 429 || type === "rate_limit_error") return "upstream_rate_limited"
+  if (type === "overloaded_error" || type === "api_error") return "upstream_server_error"
   if (fields.status === 400 || fields.status === 422) return "upstream_bad_request"
   if (fields.status === 404) return "upstream_not_found"
   if (typeof fields.status === "number" && fields.status >= 500) return "upstream_server_error"

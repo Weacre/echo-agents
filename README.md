@@ -1,6 +1,6 @@
 # 小荧（echo-agents）
 
-面向 **AI 影像性暴力** 相关困扰的 Web 应用：同伴式对话（Kimi）、自助资源包、科普与匿名案例示意。技术栈为 **Next.js**（App Router）+ **React** + **TypeScript** + **Tailwind**。
+面向 **AI 影像性暴力** 相关困扰的 Web 应用：同伴式对话（Claude）、自助资源包、科普与匿名案例示意。技术栈为 **Next.js**（App Router）+ **React** + **TypeScript** + **Tailwind**。
 
 ## 文档约定
 
@@ -19,7 +19,7 @@ bun run build
 bun run lint
 bun run test:safety
 bun run test:safety:e2e   # 需另开终端 bun run dev
-bun run test:legal-golden # 法律问句 golden 回归；live 需 KIMI_API_KEY
+bun run test:legal-golden # 法律问句 golden 回归；live 需 ANTHROPIC_API_KEY
 ```
 
 ### 常用脚本
@@ -32,17 +32,19 @@ bun run test:legal-golden # 法律问句 golden 回归；live 需 KIMI_API_KEY
 | `bun run build:cloudflare` | OpenNext → Cloudflare 构建 |
 | `bun run preview` / `bun run deploy` | Cloudflare 预览 / 部署（需已配置 Wrangler） |
 | `bun run test:safety` | 安全护栏单元回归（见 `docs/safety-test-cases.md`） |
-| `bun run test:kimi` | Kimi 诊断与流式接口回归；使用模拟上游，无需密钥 |
-| `bun run diagnose:kimi` | 使用本地配置发送一条合成短消息，输出脱敏诊断；会调用真实 Kimi |
+| `bun run test:claude` | Claude 诊断与流式接口回归；使用模拟上游，无需密钥 |
+| `bun run diagnose:claude` | 使用本地配置发送一条合成短消息，输出脱敏诊断；会调用真实 Claude |
 | `bun run test:safety:e2e` | 安全护栏 E2E（需先 `bun run dev`） |
 | `bun run test:legal-golden` | 法律 Golden 自动回归（人工抽检 SOP：`docs/legal-manual-review-sop.md`） |
 
 ## 环境变量
 
-复制 `.env.example` 为 `.env` 并填写：
+在 `.env` 或 `.env.local` 中配置：
 
-- `KIMI_API_KEY`：Moonshot Kimi API Key（对话接口需要；也可仅在浏览器弹窗中配置）
-- `KIMI_BASE_URL`：可选，默认 `https://api.moonshot.cn/v1`
+- `ANTHROPIC_API_KEY`：Anthropic Claude API Key（对话接口需要）
+- `ANTHROPIC_BASE_URL`：可选，默认 `https://api.anthropic.com`，不包含 `/v1/messages`
+- `ANTHROPIC_MODEL`：可选，默认 `claude-sonnet-4-6`
+- `ANTHROPIC_TIMEOUT_MS`：可选，默认 60000；最小 5000
 - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`：Clerk frontend publishable key
 - `CLERK_SECRET_KEY`：Clerk server secret
 - `CLERK_WEBHOOK_SIGNING_SECRET`：Clerk `user.deleted` webhook verification secret
@@ -55,16 +57,18 @@ bunx wrangler d1 migrations apply echo-agents-db --local
 bun run cf-typegen
 ```
 
-在 **同伴对话** 与 **嘉宾对话** 页顶栏点击 **齿轮按钮**，可打开 shadcn `Dialog`，将 `KIMI_API_KEY` / `KIMI_BASE_URL` 存入 **localStorage**；调用 `/api/chat` 时会随请求体带上，**优先于**服务端环境变量。点击「清除本地配置」后恢复为仅使用 `.env`。
+在 **同伴对话** 与 **嘉宾对话** 页顶栏点击 **齿轮按钮**，可打开 shadcn `Dialog`，将 `ANTHROPIC_API_KEY` / `ANTHROPIC_BASE_URL` 存入 **localStorage**；调用 `/api/chat` 时会随请求体带上，**优先于**服务端环境变量。点击「清除本地配置」后恢复为仅使用 `.env`。
 
-### Kimi 请求排障
+### Claude 请求排障
 
-先执行 `bun run diagnose:kimi`。该命令按 Next.js 开发环境的优先级加载配置，不输出密钥或对话正文，失败时以非零状态退出。浏览器配置仅开发环境或显式允许时生效；若诊断命令成功而网页仍失败，请检查日志的 `keySource`，清除浏览器旧配置后重试。
+先执行 `bun run diagnose:claude`。该命令按 Next.js 开发环境的优先级加载配置，不输出密钥或对话正文，失败时以非零状态退出。浏览器配置仅开发环境或显式允许时生效；若诊断命令成功而网页仍失败，请检查日志的 `keySource`，清除浏览器旧配置后重试。
 
-- `status:401` / `errorKind:upstream_auth`：核对密钥是否有效，以及所属平台与地址是否匹配。中国开放平台使用 `https://api.moonshot.cn/v1`，国际平台使用 `https://api.moonshot.ai/v1`；两者密钥独立，见[官方错误说明](https://platform.kimi.com/docs/api/errors)。更新配置后重启开发服务。
+- `status:401` / `errorKind:upstream_auth`：核对 Anthropic 密钥是否有效。项目使用[官方 TypeScript SDK](https://platform.claude.com/docs/en/cli-sdks-libraries/sdks/typescript)调用原生 Messages API，SDK 会自动添加 `/v1/messages`，请将基础地址设为 `https://api.anthropic.com`。更新配置后重启开发服务。
 - 错误日志为单行 JSON。`requestId` 对应流式响应的 `X-Request-Id` 和 `.local/usage-metrics.jsonl`；`phase` 区分请求拒绝与流中断；`status`、`errorType`、`causeCode`、`endpointRegion`、`keySource` 帮助定位原因。
 - HTTP 200 仅表示已建立 SSE，需检查流中是否返回错误替换内容；客户端取消会记录 `cancelled:true`，不再误报为超时。
-- 未识别的服务商错误码会降为 `unknown`，不记录任意上游 `message`、响应正文、请求头或密钥。测试计划及复现证据见 [Kimi 请求测试计划](docs/kimi-request-test-plan.md)。
+- 未识别的服务商错误码会降为 `unknown`，不记录任意上游 `message`、响应正文、请求头或密钥。测试计划及复现证据见 [Claude 请求测试计划](docs/claude-request-test-plan.md)。
+
+从原 Kimi 配置迁移时，将密钥变量改为 `ANTHROPIC_API_KEY` 并设置上述基础地址；不要将 Moonshot 密钥用于 Claude。浏览器使用独立的 `claudeApiKey` / `claudeBaseUrl` 配置，不读取旧 Kimi 配置。Cloudflare 部署前需在目标环境设置 `ANTHROPIC_API_KEY` secret；本地 `.env` 不会自动同步到线上。
 
 ## 主要路由
 

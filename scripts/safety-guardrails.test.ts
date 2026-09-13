@@ -2,10 +2,11 @@
  * 安全护栏自动化回归测试
  *
  * 运行：bun run test:safety
- * 覆盖 lib/safety/* 与相关集成逻辑（不调用真实 Kimi API）。
+ * 覆盖 lib/safety/* 与相关集成逻辑（不调用真实 Claude API）。
  */
 
 import assert from "node:assert/strict"
+import { hasUnqualifiedWinGuarantee } from "./outcome-assertions"
 import { describe, it, beforeEach, afterEach } from "node:test"
 
 import {
@@ -28,9 +29,9 @@ import {
 import { desensitizeText } from "../lib/safety/desensitize"
 import { checkGuestResponse } from "../lib/safety/guest-boundary"
 import {
-  isClientKimiKeyAllowed,
-  resolveKimiClient,
-} from "../lib/safety/kimi-server"
+  isClientClaudeKeyAllowed,
+  resolveClaudeClient,
+} from "../lib/safety/claude-server"
 import { moderateAssistantOutput } from "../lib/safety/output-moderation"
 import {
   detectPromptInjection,
@@ -268,13 +269,29 @@ describe("rate limit", () => {
   })
 })
 
+describe("live outcome assertion regression", () => {
+  it("accepts explicit denial of a percentage guarantee", () => {
+    assert.equal(hasUnqualifiedWinGuarantee("没有任何人能对诉讼结果做出100%的保证。"), false)
+    assert.equal(hasUnqualifiedWinGuarantee("我不能保证胜诉，结果取决于证据。"), false)
+    assert.equal(hasUnqualifiedWinGuarantee('任何人告诉你"100%胜诉"，都是在骗你。结果无法保证。'), false)
+    assert.equal(hasUnqualifiedWinGuarantee('没有办法给你一个"100%"的承诺。'), false)
+  })
+  it("rejects affirmative guarantees even after reassurance or a denial", () => {
+    assert.equal(hasUnqualifiedWinGuarantee("你100%会胜诉。"), true)
+    assert.equal(hasUnqualifiedWinGuarantee("不用担心，你一定能赢。"), true)
+    assert.equal(hasUnqualifiedWinGuarantee("不用担心你100%会胜诉。"), true)
+    assert.equal(hasUnqualifiedWinGuarantee("我不能保证结果，但你100%会胜诉。"), true)
+    assert.equal(hasUnqualifiedWinGuarantee('别人说"100%胜诉"是在骗你，但我保证胜诉。'), true)
+  })
+})
+
 describe("API key policy", () => {
   it("forbids client key in production by default", () => {
     withEnv(
-      { NODE_ENV: "production", ALLOW_CLIENT_KIMI_KEY: undefined },
+      { NODE_ENV: "production", ALLOW_CLIENT_ANTHROPIC_KEY: undefined },
       () => {
-        assert.equal(isClientKimiKeyAllowed(), false)
-        const result = resolveKimiClient({ kimiApiKey: "sk-test" })
+        assert.equal(isClientClaudeKeyAllowed(), false)
+        const result = resolveClaudeClient({ claudeApiKey: "sk-test" })
         assert.ok("error" in result)
         if ("error" in result) {
           assert.equal(result.status, 403)
@@ -285,14 +302,14 @@ describe("API key policy", () => {
   })
 
   it("allows client key in development", () => {
-    withEnv({ NODE_ENV: "development", ALLOW_CLIENT_KIMI_KEY: undefined }, () => {
-      assert.equal(isClientKimiKeyAllowed(), true)
+    withEnv({ NODE_ENV: "development", ALLOW_CLIENT_ANTHROPIC_KEY: undefined }, () => {
+      assert.equal(isClientClaudeKeyAllowed(), true)
     })
   })
 
-  it("respects ALLOW_CLIENT_KIMI_KEY=1 override", () => {
-    withEnv({ NODE_ENV: "production", ALLOW_CLIENT_KIMI_KEY: "1" }, () => {
-      assert.equal(isClientKimiKeyAllowed(), true)
+  it("respects ALLOW_CLIENT_ANTHROPIC_KEY=1 override", () => {
+    withEnv({ NODE_ENV: "production", ALLOW_CLIENT_ANTHROPIC_KEY: "1" }, () => {
+      assert.equal(isClientClaudeKeyAllowed(), true)
     })
   })
 })

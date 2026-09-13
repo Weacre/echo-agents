@@ -1,5 +1,7 @@
 # Kimi 请求故障测试计划
 
+> 后续状态：用户于 2026-09-13 明确要求改接 Claude。以下保留原 Kimi 故障定位历史；当前实现与最终验收见 [Claude 接入测试记录](claude-request-test-plan.md)。
+
 ## 初始证据（2026-09-13）
 
 - 分支：`fix/kimi-request-diagnostics`，从本地 `main` 创建；起始工作区干净。

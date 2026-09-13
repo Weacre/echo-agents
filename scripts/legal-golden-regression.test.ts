@@ -2,11 +2,11 @@
  * 法律 Golden Answer 回归测试
  *
  * 离线层：校验 golden 集定义 + 示范回答边界
- * 在线层（需 KIMI_API_KEY + 运行中 dev）：对 live API 跑高频法律问句
+ * 在线层（需 ANTHROPIC_API_KEY + 运行中 dev）：对 live API 跑高频法律问句
  *
  * 运行：
  *   bun run test:legal-golden
- *   LEGAL_GOLDEN_LIVE=1 KIMI_API_KEY=sk-... bun run test:legal-golden
+ *   LEGAL_GOLDEN_LIVE=1 ANTHROPIC_API_KEY=sk-... bun run test:legal-golden
  */
 
 import assert from "node:assert/strict"
@@ -28,6 +28,16 @@ const BASE_URL = (process.env.E2E_BASE_URL ?? "http://localhost:3000").replace(
   "",
 )
 const LIVE_ENABLED = process.env.LEGAL_GOLDEN_LIVE === "1"
+
+describe("administrative limitation numeral regression", () => {
+  it("accepts equivalent Chinese numerals but still rejects a different duration", () => {
+    const sample = LEGAL_GOLDEN_CASES.find(c => c.id === "legal-admin-limitation")!
+    for (const [duration, expected] of [["6个月", true], ["六个月", true], ["五个月", false]] as const) {
+      const result = evaluateLegalGoldenResponse(`行政违法一般时效是${duration}，具体情况建议咨询律师。`, sample.mustMatchAny, sample.mustNotMatch, { mustMatchAll: sample.mustMatchAll })
+      assert.equal(result.pass, expected)
+    }
+  })
+})
 const REPO_ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 function assertGoldenCaseShape(c: LegalGoldenCase): void {
@@ -100,7 +110,7 @@ async function askCompanion(question: string, apiKey: string): Promise<string> {
     body: JSON.stringify({
       mode: "companion",
       messages: [{ role: "user", content: question }],
-      ...(process.env.KIMI_API_KEY ? {} : { kimiApiKey: apiKey }),
+      ...(process.env.ANTHROPIC_API_KEY ? {} : { claudeApiKey: apiKey }),
     }),
     signal: AbortSignal.timeout(120_000),
   })
@@ -173,9 +183,9 @@ describe("legal golden live regression (optional)", () => {
         t.skip(`Dev server not at ${BASE_URL}`)
         return
       }
-      const apiKey = process.env.KIMI_API_KEY?.trim()
+      const apiKey = process.env.ANTHROPIC_API_KEY?.trim()
       if (!apiKey) {
-        t.skip("KIMI_API_KEY not set — skipping live legal golden regression")
+        t.skip("ANTHROPIC_API_KEY not set — skipping live legal golden regression")
         return
       }
 

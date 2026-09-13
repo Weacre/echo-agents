@@ -23,37 +23,37 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import {
-  clearKimiClientConfig,
-  KIMI_DEFAULT_BASE_URL,
-  kimiFieldsForRequest,
-  normalizeKimiBaseUrl,
-  readKimiClientConfig,
-  writeKimiClientConfig,
-} from "@/lib/kimi-client-config"
+  clearClaudeClientConfig,
+  ANTHROPIC_DEFAULT_BASE_URL,
+  claudeFieldsForRequest,
+  normalizeClaudeBaseUrl,
+  readClaudeClientConfig,
+  writeClaudeClientConfig,
+} from "@/lib/claude-client-config"
 
-type KimiConfigContextValue = {
+type ClaudeConfigContextValue = {
   openConfig: () => void
-  kimiRequestFields: { kimiApiKey?: string; kimiBaseUrl?: string }
-  allowClientKimiKey: boolean
+  claudeRequestFields: { claudeApiKey?: string; claudeBaseUrl?: string }
+  allowClientClaudeKey: boolean
 }
 
-const KimiConfigContext = createContext<KimiConfigContextValue | null>(null)
+const ClaudeConfigContext = createContext<ClaudeConfigContextValue | null>(null)
 
-export function useKimiConfig(): KimiConfigContextValue {
-  const ctx = useContext(KimiConfigContext)
+export function useClaudeConfig(): ClaudeConfigContextValue {
+  const ctx = useContext(ClaudeConfigContext)
   if (!ctx) {
-    throw new Error("useKimiConfig must be used within KimiConfigProvider")
+    throw new Error("useClaudeConfig must be used within ClaudeConfigProvider")
   }
   return ctx
 }
 
-export function KimiConfigProvider({
+export function ClaudeConfigProvider({
   children,
 }: {
   children: React.ReactNode
 }) {
   const [open, setOpen] = useState(false)
-  const [allowClientKimiKey, setAllowClientKimiKey] = useState(false)
+  const [allowClientClaudeKey, setAllowClientClaudeKey] = useState(false)
   const [apiKey, setApiKey] = useState("")
   const [baseUrl, setBaseUrl] = useState("")
   const [draftApiKey, setDraftApiKey] = useState("")
@@ -63,23 +63,23 @@ export function KimiConfigProvider({
   useEffect(() => {
     let cancelled = false
     void fetch("/api/config")
-      .then(async (r) => (await r.json()) as { allowClientKimiKey?: boolean })
+      .then(async (r) => (await r.json()) as { allowClientClaudeKey?: boolean })
       .then((data) => {
         if (cancelled) return
-        const allowed = data.allowClientKimiKey === true
-        setAllowClientKimiKey(allowed)
+        const allowed = data.allowClientClaudeKey === true
+        setAllowClientClaudeKey(allowed)
         if (!allowed) {
-          clearKimiClientConfig()
+          clearClaudeClientConfig()
           setApiKey("")
           setBaseUrl("")
         } else {
-          const c = readKimiClientConfig()
+          const c = readClaudeClientConfig()
           setApiKey(c.apiKey)
           setBaseUrl(c.baseUrl)
         }
       })
       .catch(() => {
-        if (!cancelled) setAllowClientKimiKey(false)
+        if (!cancelled) setAllowClientClaudeKey(false)
       })
     return () => {
       cancelled = true
@@ -87,34 +87,34 @@ export function KimiConfigProvider({
   }, [])
 
   const openConfig = useCallback(() => {
-    if (allowClientKimiKey) {
-      const c = readKimiClientConfig()
+    if (allowClientClaudeKey) {
+      const c = readClaudeClientConfig()
       setDraftApiKey(c.apiKey)
       setDraftBaseUrl(c.baseUrl)
       setFormError(null)
     }
     setOpen(true)
-  }, [allowClientKimiKey])
+  }, [allowClientClaudeKey])
 
   const save = useCallback(() => {
-    if (!allowClientKimiKey) return
+    if (!allowClientClaudeKey) return
     setFormError(null)
     const k = draftApiKey.trim()
     const u = draftBaseUrl.trim()
-    if (u.length > 0 && normalizeKimiBaseUrl(u) === null) {
+    if (u.length > 0 && normalizeClaudeBaseUrl(u) === null) {
       setFormError(
-        "Base URL 须为 https 地址（例如 " + KIMI_DEFAULT_BASE_URL + "）",
+        "Base URL 须为 https 基础地址，不含 /v1/messages（例如 " + ANTHROPIC_DEFAULT_BASE_URL + "）",
       )
       return
     }
-    writeKimiClientConfig({ apiKey: k, baseUrl: u })
+    writeClaudeClientConfig({ apiKey: k, baseUrl: u })
     setApiKey(k)
     setBaseUrl(u)
     setOpen(false)
-  }, [allowClientKimiKey, draftApiKey, draftBaseUrl])
+  }, [allowClientClaudeKey, draftApiKey, draftBaseUrl])
 
   const clear = useCallback(() => {
-    clearKimiClientConfig()
+    clearClaudeClientConfig()
     setDraftApiKey("")
     setDraftBaseUrl("")
     setApiKey("")
@@ -123,40 +123,40 @@ export function KimiConfigProvider({
     setOpen(false)
   }, [])
 
-  const kimiRequestFields = useMemo(
+  const claudeRequestFields = useMemo(
     () =>
-      allowClientKimiKey ? kimiFieldsForRequest(apiKey, baseUrl) : {},
-    [allowClientKimiKey, apiKey, baseUrl],
+      allowClientClaudeKey ? claudeFieldsForRequest(apiKey, baseUrl) : {},
+    [allowClientClaudeKey, apiKey, baseUrl],
   )
 
-  const value = useMemo<KimiConfigContextValue>(
+  const value = useMemo<ClaudeConfigContextValue>(
     () => ({
       openConfig,
-      kimiRequestFields,
-      allowClientKimiKey,
+      claudeRequestFields,
+      allowClientClaudeKey,
     }),
-    [openConfig, kimiRequestFields, allowClientKimiKey],
+    [openConfig, claudeRequestFields, allowClientClaudeKey],
   )
 
   return (
-    <KimiConfigContext.Provider value={value}>
+    <ClaudeConfigContext.Provider value={value}>
       {children}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Kimi 接口配置</DialogTitle>
+            <DialogTitle>Claude 接口配置</DialogTitle>
             <DialogDescription>
-              {allowClientKimiKey
-                ? "仅本地开发可用：密钥保存在浏览器 localStorage。生产环境请配置服务端环境变量 KIMI_API_KEY。"
-                : "生产环境不在浏览器中保存或传输 API Key。请在部署平台配置环境变量 KIMI_API_KEY / KIMI_BASE_URL。"}
+              {allowClientClaudeKey
+                ? "仅本地开发可用：密钥保存在浏览器 localStorage。生产环境请配置服务端环境变量 ANTHROPIC_API_KEY。"
+                : "生产环境不在浏览器中保存或传输 API Key。请在部署平台配置环境变量 ANTHROPIC_API_KEY / ANTHROPIC_BASE_URL。"}
             </DialogDescription>
           </DialogHeader>
-          {allowClientKimiKey ? (
+          {allowClientClaudeKey ? (
             <div className="grid gap-4 py-2">
               <div className="grid gap-2">
-                <Label htmlFor="kimi-api-key">KIMI_API_KEY</Label>
+                <Label htmlFor="claude-api-key">ANTHROPIC_API_KEY</Label>
                 <Input
-                  id="kimi-api-key"
+                  id="claude-api-key"
                   type="password"
                   autoComplete="off"
                   value={draftApiKey}
@@ -165,14 +165,14 @@ export function KimiConfigProvider({
                 />
               </div>
               <div className="grid gap-2">
-                <Label htmlFor="kimi-base-url">KIMI_BASE_URL</Label>
+                <Label htmlFor="claude-base-url">ANTHROPIC_BASE_URL</Label>
                 <Input
-                  id="kimi-base-url"
+                  id="claude-base-url"
                   type="url"
                   autoComplete="off"
                   value={draftBaseUrl}
                   onChange={(e) => setDraftBaseUrl(e.target.value)}
-                  placeholder={KIMI_DEFAULT_BASE_URL}
+                  placeholder={ANTHROPIC_DEFAULT_BASE_URL}
                 />
               </div>
               {formError && (
@@ -188,7 +188,7 @@ export function KimiConfigProvider({
           )}
           <Separator />
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-            {allowClientKimiKey && (
+            {allowClientClaudeKey && (
               <>
                 <Button type="button" variant="outline" onClick={clear}>
                   清除本地配置
@@ -198,7 +198,7 @@ export function KimiConfigProvider({
                 </Button>
               </>
             )}
-            {!allowClientKimiKey && (
+            {!allowClientClaudeKey && (
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 关闭
               </Button>
@@ -206,17 +206,17 @@ export function KimiConfigProvider({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </KimiConfigContext.Provider>
+    </ClaudeConfigContext.Provider>
   )
 }
 
-export function KimiConfigTrigger({
+export function ClaudeConfigTrigger({
   className,
 }: {
   className?: string
 }) {
-  const { allowClientKimiKey, openConfig } = useKimiConfig()
-  if (!allowClientKimiKey) return null
+  const { allowClientClaudeKey, openConfig } = useClaudeConfig()
+  if (!allowClientClaudeKey) return null
 
   return (
     <Button
@@ -225,7 +225,7 @@ export function KimiConfigTrigger({
       size="sm"
       className={className}
       onClick={openConfig}
-      aria-label="Kimi 接口配置"
+      aria-label="Claude 接口配置"
     >
       <Settings2Icon className="size-5" />
       <span className="hidden md:inline">接口设置</span>

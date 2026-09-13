@@ -1,5 +1,5 @@
 /**
- * 嘉宾 Agent：根据 MVP 文档生成 system prompt，供 Kimi API 多轮对话使用。
+ * 嘉宾 Agent：根据 MVP 文档生成 system prompt，供 Claude API 多轮对话使用。
  * 每位嘉宾对应一个角色设定 + 边界规则 + 兜底话术（后续可改为从档案/配置读取）。
  */
 
@@ -19,7 +19,7 @@ const CRISIS_FALLBACK = CRISIS_FIXED_RESPONSE
 const SUPPORT_RESOURCES =
   "若你需要倾诉或帮助，可以查看页面上的「支持资源」入口，那里有热线与机构信息。"
 
-/** 根据嘉宾 id 获取用于 Kimi 的 system prompt（MVP 阶段用模板，后续可接嘉宾档案） */
+/** 根据嘉宾 id 获取用于 Claude 的 system prompt（MVP 阶段用模板，后续可接嘉宾档案） */
 export function getGuestSystemPrompt(guestId: string): string {
   const guest = GUESTS.find((g) => g.id === guestId)
   const name = guest?.name ?? "我"

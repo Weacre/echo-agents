@@ -1,5 +1,5 @@
 /**
- * SOP 检索离线断言。不调用 Kimi。
+ * SOP 检索离线断言。不调用 Claude。
  *
  * 运行：bun run test:retrieve-sop
  */

@@ -18,9 +18,9 @@ import { QuickReplies } from "@/components/quick-replies"
 import { SelfHelpSidebar } from "@/components/self-help-sidebar"
 import { AgentMarkdown } from "@/components/agent-markdown"
 import {
-  KimiConfigTrigger,
-  useKimiConfig,
-} from "@/components/kimi-config-provider"
+  ClaudeConfigTrigger,
+  useClaudeConfig,
+} from "@/components/claude-config-provider"
 import { SupportResourcesDropdown } from "@/components/support-resources-dropdown"
 import { Button } from "@/components/ui/button"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -77,7 +77,7 @@ export function CompanionConversationPage({
 }: {
   initialConversationId?: string
 }) {
-  const { allowClientKimiKey, kimiRequestFields } = useKimiConfig()
+  const { allowClientClaudeKey, claudeRequestFields } = useClaudeConfig()
   const persistence = useConversationPersistence({
     mode: "companion",
   })
@@ -192,7 +192,7 @@ export function CompanionConversationPage({
         const res = await fetch("/api/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...requestBody, ...kimiRequestFields }),
+          body: JSON.stringify({ ...requestBody, ...claudeRequestFields }),
           signal,
         })
 
@@ -286,7 +286,7 @@ export function CompanionConversationPage({
         abortRef.current = null
       }
     },
-    [isSending, messages, kimiRequestFields, persistence],
+    [isSending, messages, claudeRequestFields, persistence],
   )
 
   const handleSend = useCallback(() => {
@@ -356,7 +356,7 @@ export function CompanionConversationPage({
               </SheetContent>
             </Sheet>
           )}
-          {allowClientKimiKey && <KimiConfigTrigger />}
+          {allowClientClaudeKey && <ClaudeConfigTrigger />}
           <ConversationSaveControl
             isSignedIn={persistence.isSignedIn}
             historyEnabled={persistence.historyEnabled}

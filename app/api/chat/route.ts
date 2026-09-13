@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import OpenAI from "openai"
+import Anthropic from "@anthropic-ai/sdk"
 import { authenticatedUserId } from "@/lib/auth/require-user"
 import {
   conversationKeyringFromEnv,
@@ -22,10 +22,11 @@ import { formatSopBlock, retrieveSop } from "@/lib/retrieve-sop"
 import { conversationHasCrisis } from "@/lib/safety/crisis"
 import { checkGuestResponse } from "@/lib/safety/guest-boundary"
 import {
-  kimiTimeoutMs,
-  kimiEndpointRegion,
-  resolveKimiClient,
-} from "@/lib/safety/kimi-server"
+  claudeTimeoutMs,
+  claudeModel,
+  claudeEndpointRegion,
+  resolveClaudeClient,
+} from "@/lib/safety/claude-server"
 import { moderateAssistantOutput } from "@/lib/safety/output-moderation"
 import {
   detectPromptInjection,
@@ -64,15 +65,13 @@ import {
   recentUserContext,
 } from "@/lib/chat-context"
 
-const KIMI_MODEL = "kimi-k2.5"
-
 type ChatRole = "user" | "assistant"
 
 type ChatMessage = { role: ChatRole; content: string }
 
 type ChatMode = "companion" | "guest"
 
-type KimiDiagnostics = {
+type ClaudeDiagnostics = {
   requestId: string
   model: string
   endpointRegion: string
@@ -342,10 +341,10 @@ function userMessagesInjectionDetected(
   return false
 }
 
-async function streamKimiWithModeration(
+async function streamClaudeWithModeration(
   controller: ReadableStreamDefaultController<Uint8Array>,
   options: {
-    client: OpenAI
+    client: Anthropic
     systemPrompt: string
     llmMessages: ReturnType<typeof sanitizeMessagesForLlm>
     mode: ChatMode
@@ -356,7 +355,7 @@ async function streamKimiWithModeration(
     started: number
     injectionDetected: boolean
     savedTurn?: SavedTurnPersistence
-    diagnostics: KimiDiagnostics
+    diagnostics: ClaudeDiagnostics
   },
 ): Promise<void> {
   const {
@@ -389,14 +388,13 @@ async function streamKimiWithModeration(
   }
 
   diagnostics.phase = "request"
-  const { data: stream, response, request_id: upstreamRequestId } = await client.chat.completions.create(
+  const { data: stream, response, request_id: upstreamRequestId } = await client.messages.create(
     {
-      model: KIMI_MODEL,
+      model: diagnostics.model,
+      max_tokens: 2048,
       stream: true,
-      messages: [
-        { role: "system", content: systemPrompt },
-        ...llmMessages.map((m) => ({ role: m.role, content: m.content })),
-      ],
+      system: systemPrompt,
+      messages: llmMessages.map((m) => ({ role: m.role, content: m.content })),
     },
     { signal: abort },
   ).withResponse()
@@ -405,16 +403,22 @@ async function streamKimiWithModeration(
   diagnostics.upstreamRequestId = safeUpstreamRequestId(upstreamRequestId)
 
   let rawAssistant = ""
+  let messageStopped = false
   for await (const chunk of stream) {
-    if (abort.aborted) throw new OpenAI.APIUserAbortError()
+    if (abort.aborted) throw new Anthropic.APIUserAbortError()
     diagnostics.chunksReceived++
     diagnostics.firstChunkMs ??= Date.now() - started
-    const delta = chunk.choices[0]?.delta?.content
+    if (chunk.type === "message_stop") messageStopped = true
+    const delta = chunk.type === "content_block_delta" && chunk.delta.type === "text_delta"
+      ? chunk.delta.text : undefined
     if (typeof delta === "string" && delta) {
       rawAssistant += delta
       diagnostics.contentChars += delta.length
       controller.enqueue(encodeSseData({ content: delta }))
     }
+  }
+  if (!messageStopped || !rawAssistant.trim()) {
+    throw Object.assign(new Error("Incomplete Claude stream"), { code: "incomplete_stream" })
   }
 
   diagnostics.phase = "moderation"
@@ -571,16 +575,16 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const kimiResolved = resolveKimiClient(j)
-    if ("error" in kimiResolved) {
+    const claudeResolved = resolveClaudeClient(j)
+    if ("error" in claudeResolved) {
       if (savedTurn) {
-        await savedTurn.fail("failed", kimiResolved.code ?? "kimi_unavailable")
+        await savedTurn.fail("failed", claudeResolved.code ?? "claude_unavailable")
       }
-      return jsonErrorResponse(kimiResolved.error, kimiResolved.status, {
-        ...(kimiResolved.code ? { code: kimiResolved.code } : {}),
+      return jsonErrorResponse(claudeResolved.error, claudeResolved.status, {
+        ...(claudeResolved.code ? { code: claudeResolved.code } : {}),
       })
     }
-    const client = kimiResolved.client
+    const client = claudeResolved.client
 
     let systemPrompt: string
     if (mode === "companion") {
@@ -594,7 +598,7 @@ export async function POST(req: NextRequest) {
 
     const context = buildChatContext(messages)
     const llmMessages = sanitizeMessagesForLlm(context.messages)
-    const timeoutMs = kimiTimeoutMs()
+    const timeoutMs = claudeTimeoutMs()
     const abort = new AbortController()
     let timedOut = false
     let streamCancelled = false
@@ -604,11 +608,11 @@ export async function POST(req: NextRequest) {
     const timer = setTimeout(() => { timedOut = true; abort.abort() }, timeoutMs)
     const intents = detectIntent(routingContext)
     const selfHelpIds = selfHelpIdsForIntents(intents)
-    const diagnostics: KimiDiagnostics = {
+    const diagnostics: ClaudeDiagnostics = {
       requestId,
-      model: KIMI_MODEL,
-      keySource: kimiResolved.keySource,
-      endpointRegion: kimiEndpointRegion(client.baseURL),
+      model: claudeModel(),
+      keySource: claudeResolved.keySource,
+      endpointRegion: claudeEndpointRegion(client.baseURL),
       phase: "prepare",
       messageCount: llmMessages.length + 1,
       chunksReceived: 0,
@@ -618,7 +622,7 @@ export async function POST(req: NextRequest) {
     const readable = new ReadableStream<Uint8Array>({
       async start(controller) {
         try {
-          await streamKimiWithModeration(controller, {
+          await streamClaudeWithModeration(controller, {
             client,
             systemPrompt,
             llmMessages,
@@ -635,9 +639,9 @@ export async function POST(req: NextRequest) {
         } catch (e) {
           const cancelled = req.signal.aborted || streamCancelled
           const timeout = !cancelled && (timedOut || sanitizeErrorMessage(e) === "upstream_timeout")
-          const diagnosticError = timeout ? new OpenAI.APIConnectionTimeoutError() : cancelled ? new OpenAI.APIUserAbortError() : e
+          const diagnosticError = timeout ? new Anthropic.APIConnectionTimeoutError() : cancelled ? new Anthropic.APIUserAbortError() : e
           const kind = sanitizeErrorMessage(diagnosticError)
-          logSafeError("chat/kimi", diagnosticError, {
+          logSafeError("chat/claude", diagnosticError, {
             ...diagnostics, mode, timeout, cancelled, timeoutMs,
             durationMs: Date.now() - started,
           })

@@ -1,7 +1,7 @@
-import { isClientKimiKeyAllowed } from "@/lib/safety/kimi-server"
+import { isClientClaudeKeyAllowed } from "@/lib/safety/claude-server"
 
 export async function GET() {
   return Response.json({
-    allowClientKimiKey: isClientKimiKeyAllowed(),
+    allowClientClaudeKey: isClientClaudeKeyAllowed(),
   })
 }

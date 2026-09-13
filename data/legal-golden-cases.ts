@@ -277,7 +277,7 @@ export const LEGAL_GOLDEN_CASES: readonly LegalGoldenCase[] = [
       "具体|个案|咨询|律师|法援",
       "可能|一般|通常",
     ],
-    mustMatchAll: ["6\\s*个?月"],
+    mustMatchAll: ["(?:6|六)\\s*个?月"],
     mustNotMatch: [
       "100%|一定(?:不能|可以|能)",
       "保证",
