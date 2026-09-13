@@ -56,11 +56,24 @@
 | 本次修改文件的 ESLint | 通过，无警告 |
 | `git diff --check` | 通过 |
 | `bun run diagnose:kimi` | 正确以非零状态退出，日志完整呈现 401 / incorrect_api_key_error / upstream_auth |
+| `bun run test:safety:e2e`（localhost 启动并预热后） | 9 项通过，1 项真实生成审核按现有开关跳过 |
+| 实际 Next.js `/api/chat` + 真实 Kimi | 同伴、嘉宾均复现 401；响应 X-Request-Id、服务器错误日志和使用指标关联一致，错误替换及 DONE 正常结束 |
 
 集成测试覆盖同伴和有效嘉宾、400/401/403/404/429/500、网络 cause、收到部分内容后上游报错、请求取消、读取取消、预先取消、5 秒超时和 SSE 结束标记。所有集成测试使用假密钥和模拟网络，不接触真实对话、D1 或 Kimi。
 
 ## 尚待环境验证
 
 - 需要在本地 `.env` 更新有效 `KIMI_API_KEY` 和匹配的 `KIMI_BASE_URL` 后，执行 `bun run diagnose:kimi` 并验证同伴/嘉宾真实回复。无需在聊天或版本库中提供密钥。
-- 网页安全 E2E 首次被开发服务器就绪前的 5 秒探活超时取消；就绪后根路径及 `/api/config`、`/api/chat` 探活仍超时。改用 Webpack 模式后根路径仍在 30 秒超时，未出现路由完成日志。本次临时启动的服务器已停止，新日志保存在 `.local/kimi-dev.*.log` 和 `.local/kimi-webpack.*.log`，原始日志未改写。此检查未通过，不用模拟 route 测试替代其验收结论。
+- 网页安全 E2E 的先前超时限制已解除：按原始运行日志使用 `bun run dev --hostname localhost`，等待服务器就绪并请求首页完成首次编译后，`bun run test:safety:e2e` 为 9 项通过、1 项可选真实生成审核跳过。先前绑定 `127.0.0.1` 的两种编译模式均有探活超时，这不足以单独证明主机绑定是根因；无需为此改动产品代码。后续日志见 `.local/kimi-localhost.*.log`，临时测试服务器已停止。
 - 启动日志仍提示未配置 `CONVERSATION_ENCRYPTION_KEY_V1`、`CLERK_WEBHOOK_SIGNING_SECRET`。历史单独一条 `chat/unhandled` 500 无充分证据确认原因；保存对话模式需要补齐原有加密配置，不属于 Kimi 鉴权修复。
+
+### 完整 HTTP 链路复验（2026-09-13）
+
+使用未更改的服务端 `.env` 密钥，无客户端覆盖，以合成消息“你好”分别请求同伴和嘉宾 1：
+
+| 模式 | 本地关联 ID | 错误日志 | 指标 | SSE |
+| --- | --- | --- | --- | --- |
+| companion | `3d400e2c-e390-41ec-bd4a-cbb6e6129e1a` | `401 / incorrect_api_key_error / keySource:server` | `upstreamStatus:401 / upstream_auth` | 错误替换后 DONE |
+| guest | `8eb842ec-f996-41cf-b1d2-020569062aae` | `401 / incorrect_api_key_error / keySource:server` | `upstreamStatus:401 / upstream_auth` | 错误替换后 DONE |
+
+这证明诊断字段在真实 Next.js 编译及 HTTP/SSE 环境中可用；当前鉴权故障不是仅在独立诊断脚本中出现。配置文件修改时间仍为 2026-09-08，没有收到有效密钥更新，成功生成验收继续等待该外部输入。
