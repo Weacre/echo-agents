@@ -23,6 +23,7 @@ import { conversationHasCrisis } from "@/lib/safety/crisis"
 import { checkGuestResponse } from "@/lib/safety/guest-boundary"
 import {
   kimiTimeoutMs,
+  kimiEndpointRegion,
   resolveKimiClient,
 } from "@/lib/safety/kimi-server"
 import { moderateAssistantOutput } from "@/lib/safety/output-moderation"
@@ -34,6 +35,8 @@ import { checkRateLimit } from "@/lib/safety/rate-limit"
 import { getClientIp } from "@/lib/safety/request-ip"
 import {
   logSafeError,
+  safeErrorDetails,
+  safeUpstreamRequestId,
   sanitizeErrorMessage,
 } from "@/lib/safety/safe-log"
 import {
@@ -68,6 +71,20 @@ type ChatRole = "user" | "assistant"
 type ChatMessage = { role: ChatRole; content: string }
 
 type ChatMode = "companion" | "guest"
+
+type KimiDiagnostics = {
+  requestId: string
+  model: string
+  endpointRegion: string
+  keySource: "client" | "server"
+  phase: string
+  messageCount: number
+  chunksReceived: number
+  contentChars: number
+  upstreamStatus?: number
+  upstreamRequestId?: string
+  firstChunkMs?: number
+}
 
 type SavedTurnPersistence = {
   complete(finalContent: string): Promise<boolean>
@@ -339,6 +356,7 @@ async function streamKimiWithModeration(
     started: number
     injectionDetected: boolean
     savedTurn?: SavedTurnPersistence
+    diagnostics: KimiDiagnostics
   },
 ): Promise<void> {
   const {
@@ -353,6 +371,7 @@ async function streamKimiWithModeration(
     started,
     injectionDetected,
     savedTurn,
+    diagnostics,
   } = options
 
   for (const id of selfHelpIds) {
@@ -369,7 +388,8 @@ async function streamKimiWithModeration(
     }
   }
 
-  const stream = await client.chat.completions.create(
+  diagnostics.phase = "request"
+  const { data: stream, response, request_id: upstreamRequestId } = await client.chat.completions.create(
     {
       model: KIMI_MODEL,
       stream: true,
@@ -379,18 +399,25 @@ async function streamKimiWithModeration(
       ],
     },
     { signal: abort },
-  )
+  ).withResponse()
+  diagnostics.phase = "stream"
+  diagnostics.upstreamStatus = response.status
+  diagnostics.upstreamRequestId = safeUpstreamRequestId(upstreamRequestId)
 
   let rawAssistant = ""
   for await (const chunk of stream) {
-    if (abort.aborted) throw new Error("timeout")
+    if (abort.aborted) throw new OpenAI.APIUserAbortError()
+    diagnostics.chunksReceived++
+    diagnostics.firstChunkMs ??= Date.now() - started
     const delta = chunk.choices[0]?.delta?.content
     if (typeof delta === "string" && delta) {
       rawAssistant += delta
+      diagnostics.contentChars += delta.length
       controller.enqueue(encodeSseData({ content: delta }))
     }
   }
 
+  diagnostics.phase = "moderation"
   let finalContent = rawAssistant
   let moderationBlocked = false
   let guestBoundaryBlocked = false
@@ -420,6 +447,7 @@ async function streamKimiWithModeration(
   }
 
   if (savedTurn) {
+    diagnostics.phase = "persistence"
     let persisted = false
     try {
       persisted = await savedTurn.complete(finalContent)
@@ -450,6 +478,7 @@ async function streamKimiWithModeration(
     upstreamError: false,
     timeout: false,
     durationMs: Date.now() - started,
+    requestId: diagnostics.requestId,
   })
 
   controller.enqueue(encodeSseDone())
@@ -457,6 +486,7 @@ async function streamKimiWithModeration(
 
 export async function POST(req: NextRequest) {
   const started = Date.now()
+  const requestId = crypto.randomUUID()
   const clientIp = getClientIp(req)
 
   const rate = checkRateLimit(clientIp, "chat")
@@ -566,11 +596,24 @@ export async function POST(req: NextRequest) {
     const llmMessages = sanitizeMessagesForLlm(context.messages)
     const timeoutMs = kimiTimeoutMs()
     const abort = new AbortController()
+    let timedOut = false
+    let streamCancelled = false
     const abortFromRequest = () => abort.abort()
     req.signal.addEventListener("abort", abortFromRequest, { once: true })
-    const timer = setTimeout(() => abort.abort(), timeoutMs)
+    if (req.signal.aborted) abort.abort()
+    const timer = setTimeout(() => { timedOut = true; abort.abort() }, timeoutMs)
     const intents = detectIntent(routingContext)
     const selfHelpIds = selfHelpIdsForIntents(intents)
+    const diagnostics: KimiDiagnostics = {
+      requestId,
+      model: KIMI_MODEL,
+      keySource: kimiResolved.keySource,
+      endpointRegion: kimiEndpointRegion(client.baseURL),
+      phase: "prepare",
+      messageCount: llmMessages.length + 1,
+      chunksReceived: 0,
+      contentChars: 0,
+    }
 
     const readable = new ReadableStream<Uint8Array>({
       async start(controller) {
@@ -587,11 +630,17 @@ export async function POST(req: NextRequest) {
             started,
             injectionDetected,
             savedTurn,
+            diagnostics,
           })
         } catch (e) {
-          logSafeError("chat/kimi", e, { mode, timeout: abort.signal.aborted })
-          const kind = sanitizeErrorMessage(e)
-          const timeout = kind === "upstream_timeout" || abort.signal.aborted
+          const cancelled = req.signal.aborted || streamCancelled
+          const timeout = !cancelled && (timedOut || sanitizeErrorMessage(e) === "upstream_timeout")
+          const diagnosticError = timeout ? new OpenAI.APIConnectionTimeoutError() : cancelled ? new OpenAI.APIUserAbortError() : e
+          const kind = sanitizeErrorMessage(diagnosticError)
+          logSafeError("chat/kimi", diagnosticError, {
+            ...diagnostics, mode, timeout, cancelled, timeoutMs,
+            durationMs: Date.now() - started,
+          })
           void recordUsageEvent({
             type: "chat_request",
             mode,
@@ -599,18 +648,23 @@ export async function POST(req: NextRequest) {
             injectionDetected,
             moderationBlocked: false,
             guestBoundaryBlocked: false,
-            upstreamError: true,
+            upstreamError: !cancelled,
             timeout,
             durationMs: Date.now() - started,
+            requestId,
+            errorKind: kind,
+            upstreamStatus: safeErrorDetails(e).status ?? diagnostics.upstreamStatus,
+            cancelled,
           })
           const msg = timeout ? UPSTREAM_TIMEOUT_MESSAGE : UPSTREAM_ERROR_MESSAGE
           if (savedTurn) {
             await savedTurn
-              .fail(req.signal.aborted ? "stopped" : "failed", kind)
+              .fail(cancelled ? "stopped" : "failed", kind)
               .catch((error) => {
                 logSafeError("chat/persistence", error, { phase: "mark_incomplete" })
               })
           }
+          if (streamCancelled || req.signal.aborted) return
           controller.enqueue(
             encodeSseData({ type: "content_replace", content: msg }),
           )
@@ -618,14 +672,20 @@ export async function POST(req: NextRequest) {
         } finally {
           clearTimeout(timer)
           req.signal.removeEventListener("abort", abortFromRequest)
-          controller.close()
+          if (!streamCancelled) controller.close()
         }
+      },
+      cancel() {
+        streamCancelled = true
+        abort.abort()
       },
     })
 
-    return new Response(readable, { headers: sseResponseHeaders() })
+    return new Response(readable, {
+      headers: { ...sseResponseHeaders(), "X-Request-Id": requestId },
+    })
   } catch (e) {
-    logSafeError("chat/unhandled", e)
+    logSafeError("chat/unhandled", e, { requestId, durationMs: Date.now() - started })
     return jsonErrorResponse("Service temporarily unavailable", 500)
   }
 }

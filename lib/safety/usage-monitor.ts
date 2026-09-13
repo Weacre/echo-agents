@@ -12,6 +12,10 @@ export type UsageEvent =
       upstreamError: boolean
       timeout: boolean
       durationMs: number
+      requestId?: string
+      errorKind?: string
+      upstreamStatus?: number
+      cancelled?: boolean
     }
   | {
       type: "story_submit"

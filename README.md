@@ -32,6 +32,8 @@ bun run test:legal-golden # 法律问句 golden 回归；live 需 KIMI_API_KEY
 | `bun run build:cloudflare` | OpenNext → Cloudflare 构建 |
 | `bun run preview` / `bun run deploy` | Cloudflare 预览 / 部署（需已配置 Wrangler） |
 | `bun run test:safety` | 安全护栏单元回归（见 `docs/safety-test-cases.md`） |
+| `bun run test:kimi` | Kimi 诊断与流式接口回归；使用模拟上游，无需密钥 |
+| `bun run diagnose:kimi` | 使用本地配置发送一条合成短消息，输出脱敏诊断；会调用真实 Kimi |
 | `bun run test:safety:e2e` | 安全护栏 E2E（需先 `bun run dev`） |
 | `bun run test:legal-golden` | 法律 Golden 自动回归（人工抽检 SOP：`docs/legal-manual-review-sop.md`） |
 
@@ -54,6 +56,15 @@ bun run cf-typegen
 ```
 
 在 **同伴对话** 与 **嘉宾对话** 页顶栏点击 **齿轮按钮**，可打开 shadcn `Dialog`，将 `KIMI_API_KEY` / `KIMI_BASE_URL` 存入 **localStorage**；调用 `/api/chat` 时会随请求体带上，**优先于**服务端环境变量。点击「清除本地配置」后恢复为仅使用 `.env`。
+
+### Kimi 请求排障
+
+先执行 `bun run diagnose:kimi`。该命令按 Next.js 开发环境的优先级加载配置，不输出密钥或对话正文，失败时以非零状态退出。浏览器配置仅开发环境或显式允许时生效；若诊断命令成功而网页仍失败，请检查日志的 `keySource`，清除浏览器旧配置后重试。
+
+- `status:401` / `errorKind:upstream_auth`：核对密钥是否有效，以及所属平台与地址是否匹配。中国开放平台使用 `https://api.moonshot.cn/v1`，国际平台使用 `https://api.moonshot.ai/v1`；两者密钥独立，见[官方错误说明](https://platform.kimi.com/docs/api/errors)。更新配置后重启开发服务。
+- 错误日志为单行 JSON。`requestId` 对应流式响应的 `X-Request-Id` 和 `.local/usage-metrics.jsonl`；`phase` 区分请求拒绝与流中断；`status`、`errorType`、`causeCode`、`endpointRegion`、`keySource` 帮助定位原因。
+- HTTP 200 仅表示已建立 SSE，需检查流中是否返回错误替换内容；客户端取消会记录 `cancelled:true`，不再误报为超时。
+- 未识别的服务商错误码会降为 `unknown`，不记录任意上游 `message`、响应正文、请求头或密钥。测试计划及复现证据见 [Kimi 请求测试计划](docs/kimi-request-test-plan.md)。
 
 ## 主要路由
 

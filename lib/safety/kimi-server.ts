@@ -2,6 +2,18 @@ import OpenAI from "openai"
 import type { Json } from "@/lib/json-parse"
 import { normalizeKimiBaseUrl } from "@/lib/kimi-client-config"
 
+/** Log only the known region; custom URLs can contain credentials or private paths. */
+export function kimiEndpointRegion(baseURL: string): string {
+  try {
+    const host = new URL(baseURL).hostname
+    if (host === "api.moonshot.cn") return "moonshot_cn"
+    if (host === "api.moonshot.ai") return "moonshot_international"
+    return "custom"
+  } catch {
+    return "invalid"
+  }
+}
+
 /** 生产默认禁止客户端传入 API Key；开发或显式 ALLOW_CLIENT_KIMI_KEY=1 时允许 */
 export function isClientKimiKeyAllowed(): boolean {
   if (process.env.ALLOW_CLIENT_KIMI_KEY === "1") return true
@@ -12,7 +24,7 @@ export function isClientKimiKeyAllowed(): boolean {
 export function resolveKimiClient(
   root: { readonly [k: string]: Json },
 ):
-  | { client: OpenAI }
+  | { client: OpenAI; keySource: "client" | "server" }
   | { status: number; error: string; code?: string } {
   const keyFromBody =
     typeof root.kimiApiKey === "string" ? root.kimiApiKey.trim() : ""
@@ -27,7 +39,7 @@ export function resolveKimiClient(
   }
 
   const apiKey =
-    keyFromBody.length > 0 ? keyFromBody : (process.env.KIMI_API_KEY ?? "")
+    keyFromBody.length > 0 ? keyFromBody : (process.env.KIMI_API_KEY ?? "").trim()
   if (apiKey.length === 0) {
     return {
       status: 400,
@@ -55,7 +67,10 @@ export function resolveKimiClient(
       env.length > 0 ? env.replace(/\/$/, "") : "https://api.moonshot.cn/v1"
   }
 
-  return { client: new OpenAI({ apiKey, baseURL }) }
+  return {
+    client: new OpenAI({ apiKey, baseURL }),
+    keySource: keyFromBody.length > 0 ? "client" : "server",
+  }
 }
 
 export function kimiTimeoutMs(): number {
