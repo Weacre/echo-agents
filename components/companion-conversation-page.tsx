@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import Image from "next/image"
+import { DESIGN_ASSETS } from "@/lib/design-assets"
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ArrowLeftIcon,
@@ -400,7 +401,7 @@ export function CompanionConversationPage({
           {!hasConversation ? (
             <section className={styles.welcome} aria-labelledby="welcome-heading">
               <Image
-                src="/logo.PNG"
+                src={DESIGN_ASSETS.companion}
                 alt="同伴支持者小荧"
                 width={220}
                 height={220}
@@ -510,7 +511,7 @@ function AgentBubble({
   return (
     <div className={cn(styles.agentRow, className)}>
       <Image
-        src="/logo.PNG"
+        src={DESIGN_ASSETS.companion}
         alt=""
         width={40}
         height={40}

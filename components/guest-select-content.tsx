@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { DESIGN_ASSETS } from "@/lib/design-assets"
 import { useRouter } from "next/navigation"
 import { ArrowRightIcon, HeartHandshakeIcon } from "lucide-react"
 
@@ -92,7 +93,7 @@ export function GuestSelectContent() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link href="/" aria-label="如荧，返回首页" className={styles.brand}>
-            <Image src="/logo.PNG" alt="" width={40} height={40} priority />
+            <Image src={DESIGN_ASSETS.companion} alt="" width={40} height={40} priority />
             <span>如荧</span>
           </Link>
           <nav aria-label="主导航" className={styles.navigation}>

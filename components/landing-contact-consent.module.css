@@ -5,7 +5,7 @@
 .skipLink:focus { top: 16px; }
 .hero { position: relative; isolation: isolate; min-height: 720px; height: min(900px, 94svh); display: flex; flex-direction: column; align-items: center; color: white; overflow: hidden; background: #80738c; }
 .heroImage { z-index: -3; object-fit: cover; object-position: center 43%; }
-.heroOverlay { position: absolute; z-index: -2; inset: 0; background: linear-gradient(180deg, rgb(65 38 89 / 32%) 0%, rgb(75 40 112 / 39%) 54%, rgb(57 28 83 / 79%) 100%); backdrop-filter: blur(1px); }
+.heroOverlay { position: absolute; z-index: -2; inset: 0; background: linear-gradient(180deg, rgb(65 38 89 / 48%) 0%, rgb(75 40 112 / 24%) 54%, rgb(57 28 83 / 79%) 100%); }
 .header { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 30px 4.5%; }
 .brand { display: flex; align-items: center; gap: 10px; font-size: 21px; font-weight: 600; letter-spacing: .08em; }
 .brand > svg { width: 25px; }
@@ -19,7 +19,7 @@
 .heroTitle h1 { margin-top: 20px; font-size: clamp(32px, 4.1vw, 62px); font-weight: 600; letter-spacing: .015em; line-height: 1.4; text-shadow: 0 2px 22px #422c7055; }
 .slogan { margin-top: 14px; font-size: clamp(16px, 1.8vw, 23px); letter-spacing: .19em; }
 .invitation { margin: auto 24px 0; display: flex; align-items: center; gap: 26px; padding-top: 90px; }
-.companionAvatar { width: 112px; height: 112px; object-fit: contain; filter: drop-shadow(0 6px 16px #30204235); }
+.companionAvatar { width: 112px; height: 112px; border-radius: 50%; object-fit: contain; filter: drop-shadow(0 6px 16px #30204235); }
 .invitationActions { display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
 .greeting, .chatLink { border: 1px solid #ffffff78; border-radius: 40px; background: #ffffff12; backdrop-filter: blur(13px); font-size: 15px; line-height: 1.7; padding: 14px 28px; }
 .greeting { border-bottom-color: #ffffff25; }
@@ -41,20 +41,13 @@
 .contentSection { margin-top: 72px; }
 .threeColumns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 52px; margin: 34px 0 0 50px; }
 .illustration { width: 100%; aspect-ratio: 1; max-width: 232px; margin: 0 auto 26px; border-radius: 50%; display: grid; place-items: center; position: relative; overflow: hidden; background: #d9b8e8; }
-.illustrationHalo { position: absolute; width: 80%; height: 80%; border: 1px solid #ffffff65; border-radius: 50%; transform: translate(-22%, 32%); }
-.illustrationIcon { width: 44%; height: 44%; color: #663389; transform: rotate(-8deg); filter: drop-shadow(14px 10px 0 #f8ecff80); }
-.typeCard:nth-child(2) .illustration { background: #d1b0df; }
-.typeCard:nth-child(2) .illustrationIcon { transform: rotate(7deg); }
-.typeCard:nth-child(3) .illustration { background: #c7a4db; }
-.illustrationSpark { position: absolute; top: 20%; right: 16%; color: #fff2d0; width: 26px; height: 26px; }
+.illustration img, .caseIllustration img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .typeCard h3 { display: flex; gap: 12px; align-items: baseline; font-size: 16px; font-weight: 500; }
 .number { font-size: 43px; font-weight: 300; line-height: 1.1; color: #bba0cc; letter-spacing: -.07em; }
 .typeCard p { font-size: 13px; line-height: 1.85; color: #756b7d; margin-top: 14px; }
 .moreTypes { display: inline-flex; align-items: center; gap: 8px; color: #77638a; font-size: 12px; margin: 25px 0 0 50px; }
 .sectionIntro { margin: 10px 0 0 50px; color: #897096; font-size: 14px; line-height: 1.8; }
 .caseIllustration { width: 100%; aspect-ratio: 1; max-width: 232px; margin: 0 auto 28px; border-radius: 50%; background: #5b2a79; display: grid; place-items: center; overflow: hidden; position: relative; }
-.caseIllustration svg { width: 48%; height: 48%; stroke: #eee0fa; z-index: 1; }
-.caseIllustration span { position: absolute; width: 80%; height: 80%; border-radius: 50%; border: 25px solid #a378b840; transform: translate(30%, 45%); }
 .caseCard { display: flex; flex-direction: column; border-radius: 10px; }
 .caseTitle { display: flex; align-items: center; gap: 10px; }
 .caseTitle .number { color: #674183; font-size: 36px; }

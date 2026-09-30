@@ -22,13 +22,23 @@ The existing SSE, stop-generation, history restore, encryption/sync controls, au
 
 ## Assets
 
-- `public/logo.PNG` and the nine guest avatars reuse existing assets.
-- `public/design/hero-portrait.webp` is a generated substitute, not the original Figma photograph or a real guest. The original PNG and the complete built-in imagegen prompt are retained alongside it in `hero-portrait.prompt.md`.
-- `public/design/rose.svg` is a local vector interpretation of the floral background. The educational illustrations use the existing Lucide icon system.
+- The homepage now uses the supplied portrait and all six supplied type/case illustrations. The companion avatar is shared by home, conversation and guest selection. The nine guest portraits are unchanged.
+- Source artwork remains in `public/design/hero-portrait.png`, `public/design/{type-*,case-*,rose}.svg` and `public/logo.PNG`. The supplied `.webp` portrait originally contained PNG bytes; it is now encoded as real WebP from the PNG source.
+- `public/design/optimized/` contains generated WebP images: six 512px illustrations, a 512px companion portrait and a 1152px-wide rose. Together with the 2560px-wide hero, the page assets total approximately 252 KB before any further Next image optimization. The original artwork is retained.
+- The six square illustrations are displayed in circular frames without the old decorative icon layers. The supplied rose has an opaque background, so it covers the resource panel rather than occupying a partial-height transparent layer. A purple overlay preserves white text readability. The supplied hero already includes blur, so additional CSS blur has been removed.
+- `lib/design-assets.ts` uses static image imports; CSS also imports the rose. Changed generated assets receive new URLs, avoiding stale cached portraits after a replacement.
 
-To use exact design artwork later, replace these local assets and the three circular illustration contents without changing application logic.
+### Replacing artwork
+
+1. Replace the source PNG/SVG files above, keeping their names and actual formats. Treat `hero-portrait.png` as the hero source; do not edit only the generated WebP.
+2. Run `node scripts/prepare-design-assets.mjs` from the project directory (or `npm run assets:design` / `bun run assets:design`). It uses Next's installed Sharp dependency and updates the page-sized WebP versions without modifying source artwork.
+3. Refresh the development preview, or rebuild before deployment. Include the generated files in version control with the source changes. Generation is explicit rather than performed on each request.
 
 ## Validation
+
+Asset integration (2026-10-01): TypeScript, lint for changed TypeScript/JavaScript files, and the production webpack build passed. Browser checks covered the desktop homepage, updated companion and guest-header portraits, all six illustration loads, the rose resource panel and 390px resource drawer. Homepage layouts were also checked at 390px and 320px with no broken images or horizontal overflow. This pass changes artwork and presentation only; live chat APIs were not exercised again.
+
+Initial UI implementation:
 
 - TypeScript passed (`tsc --noEmit --incremental false`).
 - Production build passed with `next build --webpack` (all 18 static pages generated).
