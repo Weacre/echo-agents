@@ -4,6 +4,7 @@
   "private": true,
   "packageManager": "bun@1.2.21",
   "scripts": {
+    "assets:design": "node scripts/prepare-design-assets.mjs",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
